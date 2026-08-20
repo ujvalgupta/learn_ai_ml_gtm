@@ -10,6 +10,8 @@ from copy import deepcopy
 import numpy as np
 import heapq
 import asyncio
+import ast
+import json
 
 load_dotenv()
 
@@ -86,6 +88,8 @@ async def reconcile_memory(fact, fact_vector, relevant_stuff):
             2. Final output should STRICTLY be a python list of tuples. 
             3. Each tuple should have rowid as first element and the action tag string that is "IGNORE" or "UPDATE" as second
             4. DO NOT include the new fact in the final output python list.
+            5. Output SHOULD ONLY be the list, nothing else.
+            6. If its empty, output the empty list []
         </rules>
         </system_instructions>
         <new_fact>
@@ -102,24 +106,32 @@ async def reconcile_memory(fact, fact_vector, relevant_stuff):
         messages = local_context
     )
 
-    decisions = response.choices[0].message.content
+    raw_decisions = response.choices[0].message.content
+
+    try:
+        decisions = ast.literal_eval(raw_decisions)
+    except (ValueError, SyntaxError) as e:
+        raise ValueError(
+            f"LLM returned invalid python literal while getting decisions\n"
+            f"decisions value was {raw_decisions}\n"
+        ) from e
 
     print("\n==========================================================\n")
     print("Memory decisions are ", decisions)
     print("\n==========================================================\n")
 
     if (isinstance(decisions, list)):
-        for element in list:
+        for element in decisions:
             if (isinstance(element, tuple)):
                 if (element[1] == "UPDATE"):
-                    cursor.execute("UPDATE memory SET status='SUPERSEDE' WHERE rowid=element[0]")
+                    cur.execute("UPDATE memory SET status='SUPERSEDE' WHERE rowid=?",(element[0]))
                     con.commit()
             else:
                 raise ValueError(f"LLM didn't return a tuple {element}")
     else:
         raise ValueError(f"LLM didn't return a python list {list}")
     
-    cursor.execute("INSERT INTO memory (vector, text, status) VALUES (fact_vector, fact, 'ACTIVE')")
+    cur.execute("INSERT INTO memory (vector, text, status) VALUES (?, ?, 'ACTIVE')",(json.dumps(fact_vector),fact))
     con.commit()
 
 
@@ -156,10 +168,23 @@ async def write_memory():
         messages = local_context
     )
 
-    facts = response.choices[0].message.content
+    raw_facts = response.choices[0].message.content
+
+    print("Raw facts given by LLM are \n",raw_facts);
+
+    try:
+        facts = ast.literal_eval(raw_facts)
+    except (ValueError, SyntaxError) as e:
+        raise ValueError(
+            f"LLM returned invalid python literal while getting facts\n"
+            f"decisions value was {raw_facts}\n"
+        ) from e
+    
+    print("Facts given by LLM are \n",facts);
 
     for fact in facts:
         relevant_stuff, fact_vector = find_top_matches("WRITE", fact, 0.5, 5)
+        print("Doing stuff for fact ",fact)
         await reconcile_memory(fact, fact_vector, relevant_stuff)
 
 
@@ -187,7 +212,7 @@ def find_top_matches(memory_action, query, threshold, k):
     heap = []
     
     for row in res:
-        memory_vector = row[0]
+        memory_vector = json.loads(row[0])
         memory_text   = row[1]
         memory_rowid  = row[2]
 

@@ -66,3 +66,7 @@
 --> heapq is a module that can help you with heap queue / priority queue algo
 --> In python, library is a collection of packages and a package is a collection of modules.
 --> asyncio is a library that is used to write concurrent code using async/await syntax
+--> ast is a built-in python module that allows you to programmatically traverse, parse, inspect , execute code as structured tree of objects rather than raw text string. it provides a literal_eval() utility that can convert string into whatever python data type it actually represents.
+--> Parameterized Query is a way in SQLite to prevent SQL injection possibilities. Basically you leave placeholders and then pass along the value separately while building the query.
+--> lists are built in data types in python and are flexible containers and can store any type, arrays need to be explicitly imported and can only store one specific data type
+--> json is a python built in module that basically allows you to do json related stuff like serializing json object into string using dumps() or deserializing it using loads()
