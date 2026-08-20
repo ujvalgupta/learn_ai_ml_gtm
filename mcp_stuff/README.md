@@ -56,3 +56,4 @@ Here's what we are going to try, a simple python agent that can launch an intera
 --> Fine Tuning a base model for writing emails.
 --> building a memory layer like SuperMemory of your own.
 --> Docker, Kubernetes, Jenkins stuff.
+--> can possibly implement a sliding window mechanism in the memory layer.

@@ -2,10 +2,11 @@ import os
 import sys
 import sqlite3
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 
 from google import genai
 from google.genai import types
+from copy import deepcopy
 import numpy as np
 import heapq
 import asyncio
@@ -16,6 +17,7 @@ llm_key = os.getenv("DEEPSEEK_API_KEY")
 embedding_key = os.getenv("GEMINI_API_KEY")
 
 client = OpenAI(api_key=llm_key, base_url="https://api.deepseek.com")
+async_client = AsyncOpenAI(api_key=llm_key, base_url="https://api.deepseek.com")
 embedding_client = genai.Client()
 
 con = sqlite3.connect("agent.db")
@@ -69,15 +71,115 @@ refiner_context.append({"role" : "system" , "content" : refiner_system_prompt})
 
 cur.execute("CREATE TABLE IF NOT EXISTS memory(vector, text, status)")
 
-async def write_memory():
-    return;
+async def reconcile_memory(fact, fact_vector, relevant_stuff):
 
-def find_top_matches(vector, threshold, k):
+    local_context = []
+
+    reconcile_system_prompt = f"""
+        <system_instructions>
+        <task>
+            Given a new fact that wants to take entry into user's database and a bunch of already existing most relevant database facts in database, your task is primarily to figure out tags that you need to give to only existing facts that I share. These tags are essentially actions that need to be done related to each fact. It could be ignoring, removing etc.
+        </task>
+
+        <rules>
+            1. The only VALID action tags are , "IGNORE", "UPDATE"
+            2. Final output should STRICTLY be a python list of tuples. 
+            3. Each tuple should have rowid as first element and the action tag string that is "IGNORE" or "UPDATE" as second
+            4. DO NOT include the new fact in the final output python list.
+        </rules>
+        </system_instructions>
+        <new_fact>
+            {fact}
+        </new_fact>
+        <old_facts>
+            {relevant_stuff}
+        </old_facts>
+        """
+    
+    local_context.append({"role":"system" , "content":reconcile_system_prompt})
+    response = await async_client.chat.completions.create(
+        model = "deepseek-v4-flash",
+        messages = local_context
+    )
+
+    decisions = response.choices[0].message.content
+
+    print("\n==========================================================\n")
+    print("Memory decisions are ", decisions)
+    print("\n==========================================================\n")
+
+    if (isinstance(decisions, list)):
+        for element in list:
+            if (isinstance(element, tuple)):
+                if (element[1] == "UPDATE"):
+                    cursor.execute("UPDATE memory SET status='SUPERSEDE' WHERE rowid=element[0]")
+                    con.commit()
+            else:
+                raise ValueError(f"LLM didn't return a tuple {element}")
+    else:
+        raise ValueError(f"LLM didn't return a python list {list}")
+    
+    cursor.execute("INSERT INTO memory (vector, text, status) VALUES (fact_vector, fact, 'ACTIVE')")
+    con.commit()
+
+
+async def write_memory():
+    # design a system prompt for this specifically
+    # pass the context along with system prompt to LLM and ask if there are some facts worth storing
+    # do the reconciliation
+    # update the db
+
+    local_context = []
+
+    memory_system_prompt = """
+        <system_instructions>
+        <task>
+            Given a conversation history and the very recent input/output pair at the very end of this prompt, your sole task is to figure out facts that are personal to user that aren't general and a LLM can't give it easily and those facts or details can help add some context to input that can make future responses from AI better.
+        </task>
+
+        <rules>
+            1. Resolve all pronouns (it, he, she, they, this, that, these) using the context and the facts shouldn't have them.
+            2. Incorporate key technical terms, entities, or topics such that facts are standalone data units.
+            3. Do NOT give me general things that an LLM already knows, should be specific details about the user.
+            4. Do NOT add conversational filler (e.g., "Here is the rewritten query:").
+            5. Output ONLY the finalized list in python format of facts and details.
+            6. Output should STRICTLY be in python list format.
+        </rules>
+        </system_instructions>
+        """
+    
+    local_context = deepcopy(context)
+    local_context[0] = {"role":"system" , "content":memory_system_prompt}
+
+    response = await async_client.chat.completions.create(
+        model = "deepseek-v4-flash",
+        messages = local_context
+    )
+
+    facts = response.choices[0].message.content
+
+    for fact in facts:
+        relevant_stuff, fact_vector = find_top_matches("WRITE", fact, 0.5, 5)
+        await reconcile_memory(fact, fact_vector, relevant_stuff)
+
+
+def find_top_matches(memory_action, query, threshold, k):
     # We need the cosine similarity of vector with all the vectors in the db
     # figure out how to get all of the vectors in db with status=active
     # We need to find a way to get top k matches, probably using priority queue
 
-    res = cur.execute("SELECT vector,text FROM memory WHERE status='active'")
+    result = embedding_client.models.embed_content(
+                    model = "gemini-embedding-2",
+                    contents = query,
+                    config = types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+    ) 
+
+    vector = result.embeddings[0].values
+
+    if (memory_action == "READ"):
+        res = cur.execute("SELECT vector,text,rowid FROM memory WHERE status='active'")
+    elif (memory_action == "WRITE"):
+        res = cur.execute("SELECT vector,text,rowid FROM memory")
     res.fetchall()
     
     reshaped_input_vector = np.array(vector).reshape(1,-1)
@@ -87,6 +189,7 @@ def find_top_matches(vector, threshold, k):
     for row in res:
         memory_vector = row[0]
         memory_text   = row[1]
+        memory_rowid  = row[2]
 
         reshaped_memory_vector = np.array(memory_vector).reshape(1,-1)
         similarity = cosine_similarity(reshaped_input_vector, reshaped_memory_vector)
@@ -96,24 +199,17 @@ def find_top_matches(vector, threshold, k):
 
         if similarity >= threshold:
             if counter <= k:
-                heapq.heappush(heap, (similarity, memory_text))
+                heapq.heappush(heap, (similarity, memory_text, memory_rowid))
             else:
-                heapq.heappushpop(heap, (similarity, memory_text))
+                heapq.heappushpop(heap, (similarity, memory_text, memory_rowid))
             
             counter = counter + 1
 
-    return heap
+    return heap, vector
 
 def get_memory(refined_query):
-    result = embedding_client.models.embed_content(
-                    model = "gemini-embedding-2",
-                    contents = refined_query,
-                    config = types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
-    ) 
 
-    values = result.embeddings[0].values
-
-    relevant_stuff = find_top_matches(values, 0.5, 5)
+    relevant_stuff, vector= find_top_matches("READ", refined_query, 0.5, 5)
 
     print("\n==========================================================\n")
     print("Relevant context is ", relevant_stuff)
@@ -192,9 +288,13 @@ def agent_chat():
         except KeyboardInterrupt:
             print("\nCtrl C, Session ended, Goodbye!")
             sys.exit(0)
+            cur.close()
+            con.close()
         except Exception as e:
             print(f"\nAn Error Occured, Terminating the program, {e}\n")
             sys.exit(1)
+            cur.close()
+            con.close()
 
 def main():
     if (llm_key is None) or (embedding_key is None):
