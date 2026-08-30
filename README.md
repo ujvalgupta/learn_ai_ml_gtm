@@ -177,6 +177,238 @@ Learnings -->
 
 --> zram is a way for you to use the concept of swapping but without moving data back and forth from disk , you essentially reserve some memory from the RAM itself for zram. and the least used stuff is basically compressed and moved to zram . back and forth happens with zram instead of disk this time and it is fast.
 
+----------------
+
+28/8/26 ( 18:05 ) -->
+
+Understanding backend from the first principles -->
+
+Request is sent from frontend to backend on an app, basically from client to server.
+This server is essentially a machine designed to receive and handle that request. Anything and everything that happens right after receiving this request to finally doing all of the stuff and sending some response back to the frontend is what is collectively called the backend .
+
+Now, in order to configure a machine to behave like a server and handle, process requests and do other stuff, we need to write some code using backend programming languages like JS, Java, Python etc. Natively writing a lot of code using these languages is a bit painful as you'll have to write a lot of code so essentially we have frameworks and package managers. Frameworks are like wrappers on top of the native backend programming languages along with some other utilities, and we have frameworks like Express, Django , Spring etc. We also have package managers, where there's a common registry where people publish packages ( basically useful utilities others can use) and the other devs can install those utilities from that registry. 
+
+Now in order to store the data, we need database, and our backend server talks to this database for read/write/delete stuff. Most famous options being PostGreSQL, MySQL and MongoDB. Fundamentally that is all you need for the backend part, a server and a database. 
+
+In your backend server, you basically have different routes configured and they collectively build the backend API, these are essentially just different routes with different implementations designed to handle different types of requests sent from the frontend. The API can use different naming conventions like REST, GraphQL etc
+
+Then we have the infrastructure. This basically means we have 2 options, either we buy the machines or we rent it. There's no point of buying such machines for your vibe coding ideas right so we rent it, this is essentially what cloud computing means. Big giants like GCP, Azure or AWS have data centres where they have these big physical machines and then they use virtualization on top of it using hypervisors to give you some VMs ( Virtual machines ) out of the box with different compute capacity packaged as different pricing plans basis a subscription model. You rent these VMs and essentially host your app on thse VMs. THis is IAAS.
+
+Now there can be cases, when you are scaling and your site needs to handle a lot of load of traffic so in that case you can provision more VMs etc and then have a separate VM and configure it to behave like a load balancer and you can basically scale the VMs horizontally and vertically as and when you need. 
+
+Now setting up all of this stuff isn't easy so the big tech giants also provide you solutions like App Service where its their responsibility complete to scale the servers, load balancing and stuff like that and you won't have to worry about it. This is called PAAS.
+
+The concept of microservices comes from the fact that a single backend and eventually grow up to become very bulky and hard to maintain and reason to about it so the wise choice becomes to split it up into multiple backends and each of them could have their own load balancers, db and stuff and they collectively are called microservices that handle specific tasks . eg- payment backend etc, the best part is that this way, different microservices could be using different tech stack etc as well.
+
+Now these microservices that do some specific task are also abstracted and there are companies out there that handle your payments etc , these are called SAAS platforms 
+
+There are other additional technologies as well that might be needed later when you grow like caching layer, Job queues etc.
+
+Then there's BAAS. Backend As A Service, they can just handle the entire backend for you. ( Server, DB, Auth systems, API). Examples are Supabase, Firebase, Convex, Appwrite
+
+Convex seems to be the best overall. I have used Supabase in the past and convex is much better both price and capabilities wise. it also helps a lot in the agent development because every little thing can be configured in the code itself and dashboard configs aren't necessarily needed, this is helpful especially for agents since they can see all of it in the code.
+
+Convex has some crazy fetures. One is reactive queries, no manual wiring. We have query functions written in typescript that basically get some data from some table in DB, and it's showed in UI let's say. Now this data could be updated right, in most cases, you need to manually re fetch that data via polling or set up web sockets etc but in this case, Convex automatically checks which query functions touched this data and automatically updates the data for every client who subscribed to that query automatically. Backend logic is just typescript functions, no ORM as such. It's natively built for realtime apps like chat apps, dashboards, collaborative tools etc.
+
+Convex has queries, mutations, and actions. Queries is for reading stuff from database, mutations is for writing to DB, and actions is for calling third party service APIs. We also have a schema.ts file to defined the structure of database.
+
+Convex provides server functions + database, managed as a cloud service. Convex runs it on their servers, store data and basically keeps data synced in your app. 
+
+What happens is that in the convex/ folder in your app you define the schema.ts and the functiins ( query, mutations and actions) . Then in the core frontend code that you own, you basically invoke function calls to these functions you defined in the convex/ . When you use something like "npx convex dev", it essentially helps you in authenticating then binding a project ( that you created on the convex dashboard) to the Next.js app, it then starts a watcher which tracks whatever edits are done in convex/ and sends those updates to the dev deployment of convex, essentially to convex servers and when you invoke function calls using convex client, it basically sends those function calls to the convex server and returns the results .
+
+convex deployment here essentially means it's a single instance of backend with its own functions, DB and env variables etc.
+
+------------------------------------------------------------
+
+For OkGTM project, why did we pick Next.JS and not Vite or React.
+
+Vite is a build tool for modern development. It's the engine that runs behind the scenes when you are coding your app and packages everything up for production.
+
+It works in 2 ways,
+-> When you are actively developing, and doing changes in different files, Vite serves updates to the browser for those files almost instantly however the older tools took time . This is because older tools had to bundle up your entire app before the updates could be shown but for Vite the pages are served individually to the browser on demand basically using a feature browsers support natively called ES modules.
+
+--> For production, it switches to a bundler where it combines and minifies all your code into optimized files - smaller, faster, ready to deploy.
+
+People primarily use it because it gives you fast dev server even for large codebases.
+
+Is it related to WebPack or Turbopack?
+Vite, Webpack and Turbopack , all are JS build tools , bundlers with different set of trade offs. Webpack is the older, more matured one but it's historically known for it's slowness and Vite was made as a response to that and now we have Turbopack made by Next.js made specifically to replace Webpack in Next.js
+
+Vite was designed originally to work with Vue but then plugins were made to make it work with React etc as well. There could be a way to use Vite with Next.js as well using some plugins etc but the Vercel team wanted to come up with something unified ( not using separates dtuff for dev and prod builds ) plus they wanted to experiment with Rust as a programming language for build tools ( Webpack and Vite are JS based) for performance reasons.
+
+--> ES Modules (ESM) is a JS built in feature, that allows code to be split up into multiple different files that can import from and export to each other. Vite leverages this for the fast updates where it only serves individual files to the browser on demand. Before ESM, browsers had no way to figure out what file depends on what so the blunders like Webpack had to stick everything together and send it all to the browser as one bulky js file. 
+
+In order to decide whether the frontend stack needs to be React or Next.js. The best way is to ask whether strangers need to find your website via the google search ? does fast loading of the page matter when the person lands ? Is there a CMS driven layer like the blog ? --> Answer is Next.js
+
+If the entire product is behind a login, internal tool, admin panel, dashboard, people find you via Google doesn't really matter etc --> React is the choice. 
+
+If its hybrid and you have both blogs for SEO and core SAAS behind login as well --> then too you should go for Next.js . Mainly if SEO is a priority, go for Next.js
+
+Next.js is super important for SEO and solves the problem that React faces. With React, the server sends the javascript file that's it no content initially. The browser needs to download the js files and then build DOM using it. Google's crawler can still execute javacript these days, but there are caveats, heavy JS pages can take times and might be skipped, plus time to first content matters for a real person coming on the page and that is exactly what the crawlers use as well as one of the metrics to figure out whether to rank the page or not. 
+
+Next.js basically renders the page's HTML on the browser itself so what gets sent to the browser isn't empty stuff, it's actually the HTML content, and then React hydrates the HTML content( attaches interactivity) in the browser but the crawler can see the content alredy and time to first content is minimal and the entire JS execution pipeline isn't needed before you can see the content. 
+
+The core mechanisms of Next.js that help in SEO are Server side rendering, Static Site Generation, Incremental Static Regeneration, Built in meta data handling, Automatic code-splitting per route, sitemap and robots.txt generation.
+
+-----------------------------------------------------------
+
+In general, REST and RESTful API are just used interchangeably but if we were to get too technical,
+
+REST ( Representational State Transfer ) is just an architectural style designed by someone that should follow some principles in theory. These are -->
+
+--> client - server concept ( client sends requests and the server handles them)
+--> Server doesn't maintain state between different requests ( each request contains all of the info needed to denote the state)
+--> the request contains the URI, JSON with data that might be involved in resource manipulation, type of request etc 
+--> HATEOAS ( Hypermedia As engine of application state) ( Response can contain links telling users, what they can do next)
+
+and others. Now the people adopted this structure loosely ( not following everything strictly ) and end up calling it RESTful APIs
+
+--------------------------------
+
+Relational databases fundamentally mean that the data lives in tables (rows and columns) and relationships in data is defined by references between tables.
+Non relational databases comprises all sorts of databases that don't use the traditional tables storing the data logic. It comprises document stores, key value stores, wide column stores, graph databses.
+
+Relational databases like Postgres, MySQL etc become the go to choice when you know that your data has some relationships, schema won't change much basically, you need complex queries etc.
+
+Non relational databases make sense, when the structure or schema isn't fixed and would change frequently in early development so you don't want migrating issues etc. You need to access data primarily as self contained chunks, and won't need a bunch of joins etc, plus the attributes of different records in the same table vary ( like different products could have different attributes in the same table)
+
+Most of the SAAS, agencies etc are good with relational databases itself specifically Postgres because Postgres now handles JSON very well, in most cases you will end up with relationships between data even when at start you don't think of it and then you'll have to simulate the joins thing in the code if you go ahead with the non relational thing which is worse than the db doing it . Postgres should be the go to choice unless you have a very specific reason not to go ahead with it.
+
+The above is dev phase, for deploying the convex backend to prod, you essentially use "npx convex deploy", it moves the functions, schema.ts etc there to a prod convex server, gives you a different deployment link which your Next.js app has to then point to, and you also need to setup envs separately for prod. Also, the db in prod starts from a clean state but you can import and export stuff between deployments.
+
+In Convex, we have the concept of internal functions and public functions. Internal functions are defined with internalQuery, internalMutation, internalAction and the public functions are defined with query, mutation and action. 
+
+There's also a concept of Cloud URL and HTTP Actions URL. Convex Cloud URL is essentially just the deployment URL that the convex client talks to for the normal convex functionalities whereas the HTTP actions URL is deployment site URL that is used with HTTP actions, a functionality in Convex that is used to expose HTTP endpoints that other external services can use and post to . This is needed in case where they want to send some response to Convex, but they don't speak the language of Convex so they just need simple HTTP endpoints to post to.
+
+-------------------------
+
+Figuring out the DNS stuff -->
+
+Bought the domain on hostinger. You registered the domain essentially and hostinger is your domain registrar and not necessarily where your app lives. Using Vercel for hosting the app because hostinger's hosting is paid and Vercel offers a really generous free tier . Hosting here essentially means that your app essentially is hosted on Vercel's servers which means any requests that are sent to okgtm.com ( people typing that in the browser) will be sent to Vercel's servers and Vercel will serve them with stuff.
+
+Domain and hosting are fundamentally decoupled in that sense. You essentially need a way to tell the internet that when someone types okgtm.com, send them to vercel's servers where your app is hosted. That is what DNS does.
+
+DNS is Domain Name System. DNS translates the human readabale domain names into machine understandable info ( IP address, or instructions about how and where to route traffic)
+
+DNS records are entries that live in your domain's DNS zone. Common ones that you'll deal with are
+--> A record, maps root domain to an IP address
+--> CNAME record, points sub domain to another host name
+and others
+
+DNS provider is the company/service that is responsible for hosting your DNS records and answering the quesiton of what does a specific domain or subdomain etc point to. it runs the servers that hosts these records.
+
+The nameservers are the actual servers ( hostnames ) that actually answer your domain related DNS resolution questions. By default, the registrar is the DNS provider as well but you can change that to use some other DNS provider like Vercel by pointing the nameservers against your domain to the Vercel's nameservers and then all of the DNS records you can manage in the Vercel's dashboard itself.
+
+For okgtm.com, I am just changing the nameservers to point to Vercel now.
+
+A DNS record primarily contains, 
+Name (sub domain ? or @ if root), Type , Value ( hostname ?), TTL, Priority.
+
+TTL is Time To Live. It means how long ther DNS servers across the world are allowed to cache this DNS record before they have to re check.
+A type record points to an IP address itself.
+CNAME type record points to another domain name and tells to resolve whatever that domain name resolves to. It's canonical name
+
+Priority field of the DNS record is used particularly for the MX type records for prioritizing which mail server handles the request when multiple mail servers are configured for the same domain.
+
+like okgtm.com served via A record, www.okgtm.com served via CNAME record .
+
+For labs.okgtm.com --> just add that DNS record, then add that domain in the settings-> domains of the project as well and done.
+
+-----------------------------------------------------------
+
+Setting up emails for a domain -->
+
+Setting up the business email ujval@okgtm.com --> Zoho mail's plan is much better and offers more features for less price compared to hostinger mail. I made a mistake here. No issues, from next month, we'll pick Zoho mail. Canceled the auto renewal.
+
+Now Vercel is my DNS provider, it's servers are where the DNS zone is so I need to configure some more DNS records ( MX, TXT, CNAME etc) there for setting up the mailbox of ujval@okgtm.com. The mailbox provider right now is Hostinger and it asked me to add a bunch of DNS records specifically for enabling the mailbox and these included MX, DMARC, TXT etc type records.
+
+How does this entire thing work, fundamentally ?
+
+Setting up the emails for a domain involves 2 directions configured separately ->
+One is receiving email and another is sending email. Receiving email is essentially that when the email is sent to ujval@okgtm.com where does it actually land ?
+Another is sending email, when the email is sent from ujval@okgtm.com, which server actually sends it, how does the receivers know that it's not fake from a spoofer etc ?
+
+Email provider is the service like ( Hostinger Email, Zoho mail etc) that helps you configure a mailbox for your domain. These providers essentially give you some storage for your email plus a login. The email providers have the mail servers running which you can then use to send or receive emails.
+
+MX records ( Mail Exchange) are DNS records that basically say, "for this specific domain, the emails should be sent to a specific mail server" so someone sending email to ujval@okgtm.com, the process would look like, look up the MX records and check which are the servers that are handling this specific email, and choose to send it to the highest priority one ( the one with lowest no.) . In your case, hostinger mail, gave you MX records that you added in the DNS zone of Vercel, and its values denotes the hostinger's mail servers.
+
+This is kinda similar to what happens when someone types the domain name and the traffic is routed to vercel but in this case, its about mail delivery. 
+
+IMAP/SMTP --> How your devices talk to the mailbox. These are 2 different protocols for 2 different tasks.
+
+IMAP ( Incoming Mail Server ) --> protocol basically helps the phone/email client to read/sync messages from your hostinger's mailbox. imap.hostinger.com is Hostinger's mail server and you basically authenticate as ujval@okgtm.com to get the messages from it's inbox.
+SMTP ( Outgoing Mail Server )--> protocol used to send messages. When you send an email from the phone/email client like GMail after you have authenticated as ujval@okgtm.com with smtp.hostinger.com ( this essentially is Hostinger's outgoing email server) , your email basically goes through this server to the recipient/s.
+
+Essentially, when you add ujval@okgtm.com as a non GMAIL account in Gmail app, you are telling Gmail to use IMAP at imap.hostinger.com and SMTP at smtp.hostinger.com
+
+Autodiscover and Autoconfig are special DNS records basically using which when you are connecting the hostinger mail with email clients you don't have to manuakky type in the IMAP/SMTP host servers etc, it automatically figures that out once you authenticate with the mail and pass.
+
+Alias ---> Extra mail ids that basically deliver stuff to the same mailbox, mails sent to ujval@okgtm.com, support@okgtm.com etc are land into one common inbox, ujval@okgtm.com
+Forwarder --> Mail sent to this address gets forwarded to a different external address. Eg Mail lands in contact@okgtm.com, forwarded to contactujval@gmail.com. You don't need to have a dedicated mailbox for contact@okgtm.com with Hostinger for this. The concept is different from what happens when Gmail client connects to imap.hostinger.com. In that case, the mails actualy stay on the hostinger's server, and dedicared mailbox and you just get a sync of email messages. In the case of Forwarder, the mails are simply redirected, they don't stay on hostinger's servers.
+
+Resend is a programmatic email sending service and we need to basically add specific DNS records to tell to the world that ujval@okgtm.com actually authorised Resend to send emails etc
+
+------------------------------------------------------------
+
+30/8/26 (12:34)
+
+Understanding the security aspects of a webapp fundamentally
+
+--> Authentication and Authorization, authentication is basically, confirming identity ( who are you ? login , biometrics, password checks etc), authorisation is different access levels for a user ( What are you allowed to do ?). You can basically build your own authorisation and authentication system but it's much better that you use third party services like Firebase, Auth0 or Clerk etc because they really take care of every little detail which you might miss. Let users sign in using their Google, Github accounts etc, this way you can leverage the security infra of these big players. 
+
+The auth system touches a lot of pillars like session/token management, email verification, MFA etc and each of them has decades of accumulated attack patterns so there are a lot of ways in which this can go wrong. It's hard to maintain such an auth system yourself so it's much better to delegate this stuff to someone who's an expert at this.
+
+--> Define clear role based controls for authorisation and assign permissions to each role properly. Always ensure checks on both client and server side for permissions, never trust the client side checks alone.
+
+Authorisation comes into picture after authentication. 
+
+--> Data Security --> Ensuring the data remains secure in the entire lifecycle starting from when it enters your system right till it lesves the system or is deleted. Think about it in 3 layers, data in transit, in rest and in use. Each of them requires different measures.
+
+For the data in transit, always use HTTPS. You get the SSL certificate, and then the data moving between the client and server is essentially encrypted and anyone trying to intercept the network traffic like public wifis, compromised routers etc can only see cipher text.
+This is generally sufficient but if the data is like really sensitive, you can use application level encryption as well, you use strong encyrption and never hardcode encryption keys, always use env variables. Ensure that .gitignore rightly ignores all sensitive stuff etc as well. The env variables should be present in the platform's secret manager and not the repo.
+
+Unencrypted data at rest is also risky if someone somehow gets access to the disk or db so most managed services like Convex ensure the data at rest is also encrypted.
+
+When the data is in use, being actively processed in memory, the risks are, the memory might be dumped to a log file which contains password etc, or logging / error tracking tools accidentally printing sensitive fields. The way to fix this is to not log entire request bodies and ensure that the sensitive fields are redacted and for error tracking tools , ensure that sensitive stuff is scrubed before the stack trace is dumped etc.
+
+Next is data validation, whenever some data enters the system, could be through user input, always ensure that it is validated and never trust the user. checks like invalid email format, password level checks etc. Never trust the client, all of these checks should also be present at the server level. This applies to file uploads etc as well.
+
+For file upload validation specifically, enfore file size limits, check the type of file using actual signature/magic bytes rather than relying on the extension type or content type in header. Store uploads somewhere that doesn't execute code, it could be a malicious script disguised as an imae and might trick the server into executing it. Also scan for malware if you are accepting uploads from public users at scale.
+
+Attack Prevention --> Protecting against stuff like Cross Site Scripting (XSS), SQL injection or Cross Site Request Forgery (CSRF).
+XSS happens when the attacker injects malicious code in your web page. You should sanitize input and stuff before displaying it. Use content security policy headers to implement an extra layer of protection. Let's say the hacker types in a comment and you just dump that comment in the html of the web page, it could be some malicious code that now gets executed on other user's browsers. 
+
+What you should so is basically escape that input which means converting the characters that hold special meaning in HTML into a form that appears same visually but after converting, the browser's parser knows that it isn't markup. something like < is converted to &lt etc.. Most modern frameworks like React, Vue etc do this automatically when you render variables normally.
+You should also have content security policy headers in place. These tell the browser to only execute scripts from trusted allowed origins so even if someone mailiciously injects script tags with src pointing to their website and you didn't escape characters, it won't be executed because it isn't a trusted origin.
+
+SQL injection is basically when the hacker tries to breach the guard rails by passing in input executable SQL syntax thinking that in backend, we could just concatenate the input, if we do that, his SQL syntax can get executed which is not good. What you should be doing instead is, use parameterized queries in which case, the input is never treated as SQL syntax, the actual query is compiled and parsed first in DB with input still as placeholders initially and only after that the input is used for filtering and stuff so it won't get executed as SQL syntax. 
+
+You can also use ORM's like Prisma or Drizzle etc in which case you won't have to worry about this as it's their responsibility of building parameterized queries under the hood.
+
+CSRF ( Cross Site Request Forgery ) happens when a malicious site tricks a logged in user's browser to make an unwanted request to your site using their existing sessions/cookies. The way to fix this is CSRF tokens and SameSite=Strict . In CSRF tokens method, the server generates a CSRF token as a hidden input field when you are submitting a form let's say, and when you hit submit, the token is validated against what was generated by server. A forged request from other site doesn't have any way to figure out this token because of same origin policy. Another method is SameSite=Strict property of cookies, in which case browser won't allow forged cross site requests with that cookie.
+
+Same origin policy is a strict browser rule that fundamentally means that a web page running javascript from one origin cannot read or intereact with the data from some other origin unless explicity allowed. What counts as the same origin ?
+
+--> Scheme ( HTTP vs HTTPS )
+--> Port Number
+--> Host name
+
+All 3 must match for it to be same origin.
+
+CORS ( Cross Origin Resource Sharing ) is a mechanism by which a server can deliberately relax the same origin policy for specific cases. This is how legit cross origin requests are made like the frontend of your app hosted on one server calling the apis from the backend of your app hosted on some other server. 
+
+In other terms, CORS is a rule that browser enforces to protect the user's browser from a malicious web page whose JS can read data from some other site the user is logged into. CORS doesn't hold relevant apart from browser context ( a backend making some API calls to third party services using API keys, curl, POSTMAN, Python script).
+
+Use security headers as the first line of defense.
+
+Infrastructure Security --> Preventing app from abuse and ensuring system stays reliable and up during heavy load as well. Use rate limiting ( on a bunch of things, how many password guesses can be made, how many calls of backend api services etc can be made in a given time frame etc).
+DDOS protection --> You can use cloud level services like AWS shield or Cloudflare but you need to have application level protection as well. Use graceful degradation, under heavy load, your application should gradually reduce functionality, rather than crash severely. 
+
+Denial of Service (DOS)  is when the haccker makes a bunch of calls manually or programmatically to crash your app. Distributed Denial Of Service ( DDOS ) is when the hacker hacks a bunch of machines and then impersonates them to then make a bunch of programmatic calls from different device to flood your backend with requests and eventually crash it
+
+Security Monitoring --> Set up realtime monitoring alerts, security patches and stuff.
+
+
 ------------------------------------------------------------
 
 --> TODO -->
@@ -187,3 +419,6 @@ Learnings -->
 --> What exactly does open weight models mean ? Why do some models have fewer guard rails for tasks like scraping while others have more ? Is it about the harness or just about the model capabilities ?
 --> What does MOE models mean ?
 --> Lite LLM seems to be an interesting tool for using CLaude Code harness without any subscription ?
+--> Understand how OAuth, JWT, sessions, cookies etc stuff works ?
+--> How does HTTP / HTTPS / SSL / TLS certificate works ?
+--> What is Cache invalidation ?
