@@ -373,7 +373,7 @@ When the data is in use, being actively processed in memory, the risks are, the 
 
 Next is data validation, whenever some data enters the system, could be through user input, always ensure that it is validated and never trust the user. checks like invalid email format, password level checks etc. Never trust the client, all of these checks should also be present at the server level. This applies to file uploads etc as well.
 
-For file upload validation specifically, enfore file size limits, check the type of file using actual signature/magic bytes rather than relying on the extension type or content type in header. Store uploads somewhere that doesn't execute code, it could be a malicious script disguised as an imae and might trick the server into executing it. Also scan for malware if you are accepting uploads from public users at scale.
+For file upload validation specifically, enfore file size limits, check the type of file using actual signature/magic bytes rather than relying on the extension type or content type in header. Store uploads somewhere that doesn't execute code, it could be a malicious script disguised as an image and might trick the server into executing it. Also scan for malware if you are accepting uploads from public users at scale.
 
 Attack Prevention --> Protecting against stuff like Cross Site Scripting (XSS), SQL injection or Cross Site Request Forgery (CSRF).
 XSS happens when the attacker injects malicious code in your web page. You should sanitize input and stuff before displaying it. Use content security policy headers to implement an extra layer of protection. Let's say the hacker types in a comment and you just dump that comment in the html of the web page, it could be some malicious code that now gets executed on other user's browsers. 
@@ -408,6 +408,36 @@ Denial of Service (DOS)  is when the haccker makes a bunch of calls manually or 
 
 Security Monitoring --> Set up realtime monitoring alerts, security patches and stuff.
 
+-----------------------------------------------------------
+30/8/26 (21:58)
+
+Ensuring your VPS is secured involves -->
+
+1. Disabled root login
+2. Created non root sudo user
+3. Disabled password authentication
+4. Setup UFW
+5. Installed Fail2Ban
+6. Security update patches frequently and other updates and upgrades.
+
+Always login using SSH keys and that too using the non root user.
+
+When an app hosted on your server listens on 0.0.0.0:3001, it's a wildcard that says, I'll listen to and accept all the connections at any door on port 3001, this could be your 127.0.0.1 ( the loopback address ), your public IPV4 address, or tailscale IP and this is really not a good thing. Since you can't directly access 127.0.0.1 because you are on a server so its technically best to just use tailscale in such cases ( where let's say your phone, local laptop etc are on the tailscale VPN) , use it its kinda secure, bind your app to the tailscale IP of the server. When you are on tailscale VPN, all the devices on that VPN, have unique IPs given by tailscale and that doesn't collide with anything else on the general internet ( because it chooses from CGNAT space of IPs). Also the tailscale IPs in a VPN, can only be accessed by devices in that VPN, any random person typing that would get nothing. 
+
+------------------------------------------------------------
+
+30/8/26 (23:42)
+
+Deploying OkGTM
+
+1. npx convex deploy from the project root where convex is setup. This helps you first deploy the backend to prod from VPS itself and it gives you a prod backend URL that your frontend app will talk to in production.
+2. Now you need to set up backend env variables from the VPS command line using npx convex env set ( and use the prod backend for CONVEX_DEPLOYMENT) ( can check finally using the npx convex env list)
+
+At this point, your prod backend stuff is configured, now comes the frontend.
+
+3. Push the app to github, go to vercel, add project and import the repo. It will ask you to set up env keys and it will include the ones that you already set in backend, you can just ignore them and set the NEXT_PUBLIC_CONVEX_URL so that your app talks to the prod backend and deploy, just ignore other suggestions unless relevant.
+
+4. App goes live with vercel subdomain. You can then connect your domain that you already configured in Vercel. Configure if not already configured.
 
 ------------------------------------------------------------
 
@@ -422,3 +452,6 @@ Security Monitoring --> Set up realtime monitoring alerts, security patches and 
 --> Understand how OAuth, JWT, sessions, cookies etc stuff works ?
 --> How does HTTP / HTTPS / SSL / TLS certificate works ?
 --> What is Cache invalidation ?
+--> Understand how TailScale works fundamentally ?
+--> How to decide when you need multiple backends ?
+--> What is CDN and how does it work ?
