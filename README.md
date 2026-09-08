@@ -439,6 +439,88 @@ At this point, your prod backend stuff is configured, now comes the frontend.
 
 4. App goes live with vercel subdomain. You can then connect your domain that you already configured in Vercel. Configure if not already configured.
 
+----------------------------------------------------------
+
+04/9/26 (03:22)
+
+Docker helps a lot when it comes to horizontal scaling because you would want your app to be running on multiple machines and the versions etc should match so docker containers are helpful.
+
+A normal question to have is why can't we just keep on vertically scaling the machine ? just keep on increasing the capacity of the same VM to handle more requests/tasks. The problem here comes with the fact that there's a limit to how much you can vertically scale a server. Plus, it's also about costs as well . There might be chances that you get 2 different machines that add up to same spec for cheaper price compared to 1 single machine with that same price tag. 
+
+Another important nuance is that with just single machine with very high capacity, there's a single point of failure which is obviously not a good thing at scale.
+
+The right approach is to use vertical scaling and go ahead with horizontal scaling only if its necessary.
+
+On Hetzner, I just checked some prices and realized that vertically scaling is the right way to go atleast till we scale to CX53, which has 16 vCPU, 32 GB RAM, 320 GB Nvme space and will cost around  Rs 3000/month ( not bad at all, I would say)
+
+Also, just realized that it is not like docker will only help in horizontal scaling cases, it also helps in vertical scaling. Eg - If you vertically scale the main machine since we realized that is cheaper and we don't both bother about problems like single point of failrre etc for now, we can just spin up multiplie isolated docker containers running your app on the same machine you rescaled and you are good to go. You can keep doing this till you eventually hit single machine rescaling limits, in which case you will have to need multiple machines altogether.
+
+The docker image should be stateless and could be rebuilt freely. This includes python packages, scripts, dependencies, chromium browser. The stuff that is stateful is the data that stays on the machine. This inludes cookies, persistent browser profiles, .env etc.
+
+05/9/26 (03:19) - What I have realized is that there is no need of multiple docker containers running on same machine for the linkedin stuff, you can just vertically scale the server and then remove the constraint that one daemon can only use 1 account at a time. So vertically scale the server, remove that constraint and you are good to go and then when you hit vertical limits, you can sure use docker containers on other machines.
+
+-----------------------------------------------
+
+Matt Pocock Skills
+
+Complexity is anything related to the structure of the software that makes it hard to understand and modify the system.
+Bad codebase is a codebase that is hard to change without causing bugs.
+
+/grill-me --> It's a skill where it interviews you relentlessly about every aspect of the plan until both of you reach a shared understanidng. Walk down each branch of the design tree, resolving dependencies, one by one. This is better than the Plan Mode of Claude Code. Th entire idea is "Before you code, reach a shared design concept"
+
+/grill-with-docs is an advanced version ( use it)
+
+The best modules are deep. They allow a lot of functionality to be exposed through a simple interface and they basically hide the complexity behind the interface. 
+
+The codebase should have deep modules but AI is great at making shallow modules so you should use /improve-codebase-architecture.
+
+It helps you write good codebase which is then easy to test as well.
+
+You should think of designing the interface and then delegate the implementation. Use /grill-me , /write-a-prd , /prd-to-issues for this
+
+Invest in the design of the system every day.
+
+Just start with the /grill-with-docs and the /improve-codebase-architecture skill. We'll figure out the rest along the way
+
+https://www.aihero.dev/skills
+
+-----------------------------------------------------------
+
+8/9/26 
+
+How big teams work with Docker ?
+
+They deploy artifacts, not code. They treat image as the only real thing, deps, pinned versions, base OS etc all in form of an immutable, checksummed, tagged artifact.
+
+Important pointers to keep in mind -->
+
+1. Pin Everything --> Use lockfils, don't use >= floating versions.
+2. Build once and push to registry like GHCR/ECR etc with an immutable tag ( commit SHA ) and then promote that tag, dev -> staging -> prod. You don't build on prod again.
+3. When building docker images, put the rarely changing things like dependencieson early and the frequently changing things like application code later so Docker can reuse its cache. For compicated builds, use a temporary builder environment with all the tools needed to build and then only copy the finished application into the clean runtime image.
+4. Don't have any sort of hardcoded paths, machine names, secrets, all of it should come from env variables etc.
+5. Containers should be stateless
+
+.dockerignore is used so that when you use docker build, and it sends your project folder to daemon, you need to ignore the .dockerignore stuff so that it isn't baked into the final image.
+
+With docker, you don't generally send the entire source files to each machine ( if its compiled application where you already get executables like in CPP). What you generally do is build an image containing all of the stuff needed to run the application and then distribute that image and then start multiple containers from it. For interpreted applications like Python, you still need application code in image.
+
+Dockerfile contains the exact instructions needed to build the image. Devs write it . After the image is built, you can just run multiple containers using it.
+
+Generally you can run the docker containers using docker run command but at times, you want to pass a bunch of configurations with which the docker container has to run and instead of passing them all in command line we write a docker compose yaml files that has all the declarations that we need to pass for running the docker container.
+
+docker build command for making the image , docker run for running it, -rm flag with run to delete the container after the stuff is done or else docker ends up keeping the container even after the work is done.
+
+docker ps shows all containers, docker ps -a shows both running and stopped containers.
+docker rm to remove some containers.
+
+You can see the images built after docker build using the docker images command. There's no extension for these images, they are just collection of layers in the internal storage.
+
+/var/lib/docker is the place where the docker stuff like containers, images are present generally.
+
+A base image is simply an image that another image is built on top of. Docker can keep it up from local if present or pull from Docker Hub and then build another image using this image.
+
+You can remove the docker images using docker rmi command.
+
 ------------------------------------------------------------
 
 --> TODO -->
@@ -455,3 +537,11 @@ At this point, your prod backend stuff is configured, now comes the frontend.
 --> Understand how TailScale works fundamentally ?
 --> How to decide when you need multiple backends ?
 --> What is CDN and how does it work ?
+--> How to think about scaling the linkedin farm. I think we can dockerize stuff but what all things would be the part of image, how would it work etc?
+--> How to actually dockerize ? https://youtu.be/gAkwW2tuIqE?si=_IQpoy-Gz6hXRuc-
+
+--> login to GHCR or ECR, or Docker Hub etc, push the image, pull the image and so on. Tinker around basically and get a good hold of it.
+--> Connect Convex backend to linkedin scraper and ensure that all the machines with docker container running eventually link back to the same prod db and modfy similar tables and have proper idea of how they will add data simultaneously to the same table etc, consider multiple things.
+--> Build detailed scraper layer --> it should scrape posts, comments, reactions, reposts etc for each person from a list let's say, or it could be realtime, where you ask it in Pi chat itself to just add a task in queue to do that . We have ensured that the warmup part works fine. We also need to ensure scraper part works fine, and it is appropriately moved to cooling state, and other states accordingly.
+
+--> Also check what process is followed after you make some changes etc, do you rebuild image and push it to github and so on. What do we do ?
