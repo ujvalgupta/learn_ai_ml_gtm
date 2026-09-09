@@ -521,6 +521,26 @@ A base image is simply an image that another image is built on top of. Docker ca
 
 You can remove the docker images using docker rmi command.
 
+docker compose build command basically checks your docker compose.yml, finds the images used by services and whether they need to be built and builds them using the specific docker files. You specify the major, minor, patch version format as the tag in the compose file and you need to change it as and when you are changing the code etc.
+
+docker build command can also help you build stuff but that then happens on a manual basis, you specify the image name and that becomes the tag for it etc.
+
+docker compose up command will basically start all the non-profile services as persistent processes and keep them running forever. docker compose run command can be used for running once and getting an answer ( --rm flag to remove the stale container )
+
+docker tag command used to give the same image one more label. In this case you'll have multiple images shown when you do docker images but technically it isn't a new image, its just the labels are different but image id would be same and then you can remove the wrong label using docker rmi command.
+
+newgrp docker command to basically start a new shell where docker becomes the effective primary group and you can then verify using id -gn
+
+For pushing the image to registry, GHCR ( Github Container Registry ) is the right choice because stuff stays private. Docker Hub works as well but then by default the image is public and there's pricing for private repos.
+
+login to ghcr.io using docker login. you'll have to use a classic github PAT as the password
+docker tag command to change the label to make it to something like ghcr.io/ujvalgupta/linkedin-farm:1.0.0 and then push with that label to ghcr. It will be visible in the packages section in your github dashboard.
+
+You can then pull the image using docker pull command. The cleaner way would be to modify the compose file to add the name of the image corresponding to image : and then just use the docker compose up command, it will check whether the same image is present in local, if not, pull from that link and run it.
+
+You need to be disciplined about versioning because docker doesn't enforce a "this tag can only be pushed once" policy. it will just silently override what was already there so it's responsibility of dev to ensure that he modified the version appropriately. In most teams, CI does the image build and versioning part so you don't generally have to do that but for small projects you might.
+
+
 ------------------------------------------------------------
 
 --> TODO -->
@@ -540,8 +560,5 @@ You can remove the docker images using docker rmi command.
 --> How to think about scaling the linkedin farm. I think we can dockerize stuff but what all things would be the part of image, how would it work etc?
 --> How to actually dockerize ? https://youtu.be/gAkwW2tuIqE?si=_IQpoy-Gz6hXRuc-
 
---> login to GHCR or ECR, or Docker Hub etc, push the image, pull the image and so on. Tinker around basically and get a good hold of it.
 --> Connect Convex backend to linkedin scraper and ensure that all the machines with docker container running eventually link back to the same prod db and modfy similar tables and have proper idea of how they will add data simultaneously to the same table etc, consider multiple things.
 --> Build detailed scraper layer --> it should scrape posts, comments, reactions, reposts etc for each person from a list let's say, or it could be realtime, where you ask it in Pi chat itself to just add a task in queue to do that . We have ensured that the warmup part works fine. We also need to ensure scraper part works fine, and it is appropriately moved to cooling state, and other states accordingly.
-
---> Also check what process is followed after you make some changes etc, do you rebuild image and push it to github and so on. What do we do ?
