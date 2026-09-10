@@ -206,6 +206,10 @@ There are other additional technologies as well that might be needed later when 
 
 Then there's BAAS. Backend As A Service, they can just handle the entire backend for you. ( Server, DB, Auth systems, API). Examples are Supabase, Firebase, Convex, Appwrite
 
+---------------------------------------
+
+Convex for backend stuff.
+
 Convex seems to be the best overall. I have used Supabase in the past and convex is much better both price and capabilities wise. it also helps a lot in the agent development because every little thing can be configured in the code itself and dashboard configs aren't necessarily needed, this is helpful especially for agents since they can see all of it in the code.
 
 Convex has some crazy fetures. One is reactive queries, no manual wiring. We have query functions written in typescript that basically get some data from some table in DB, and it's showed in UI let's say. Now this data could be updated right, in most cases, you need to manually re fetch that data via polling or set up web sockets etc but in this case, Convex automatically checks which query functions touched this data and automatically updates the data for every client who subscribed to that query automatically. Backend logic is just typescript functions, no ORM as such. It's natively built for realtime apps like chat apps, dashboards, collaborative tools etc.
@@ -217,6 +221,20 @@ Convex provides server functions + database, managed as a cloud service. Convex 
 What happens is that in the convex/ folder in your app you define the schema.ts and the functiins ( query, mutations and actions) . Then in the core frontend code that you own, you basically invoke function calls to these functions you defined in the convex/ . When you use something like "npx convex dev", it essentially helps you in authenticating then binding a project ( that you created on the convex dashboard) to the Next.js app, it then starts a watcher which tracks whatever edits are done in convex/ and sends those updates to the dev deployment of convex, essentially to convex servers and when you invoke function calls using convex client, it basically sends those function calls to the convex server and returns the results .
 
 convex deployment here essentially means it's a single instance of backend with its own functions, DB and env variables etc.
+
+The above is dev phase, for deploying the convex backend to prod, you essentially use "npx convex deploy", it moves the functions, schema.ts etc there to a prod convex server, gives you a different deployment link which your Next.js app has to then point to, and you also need to setup envs separately for prod. Also, the db in prod starts from a clean state but you can import and export stuff between deployments.
+
+In Convex, we have the concept of internal functions and public functions. Internal functions are defined with internalQuery, internalMutation, internalAction and the public functions are defined with query, mutation and action. 
+
+There's also a concept of Cloud URL and HTTP Actions URL. Convex Cloud URL is essentially just the deployment URL that the convex client talks to for the normal convex functionalities whereas the HTTP actions URL is deployment site URL that is used with HTTP actions, a functionality in Convex that is used to expose HTTP endpoints that other external services can use and post to . This is needed in case where they want to send some response to Convex, but they don't speak the language of Convex so they just need simple HTTP endpoints to post to.
+
+Convex is a document-relational database . Document means JSON like nested objects stored in the database in tables and these tables have realtions.
+
+--> Storage unit is a JSON like object, not a row with fixed schema.
+--> It has the concept of tables, but not rows and columns actually. Each table has a bunch of document ids, each document occupying a row and the best part is, the schema of document doesn't have to be the same,
+--> Every document has a unique document id and you build relations by storing this document id as a field in some other table.
+--> Difference from SQL is that you don't have any query planner doing the joins for you. You have to do that in the application code yourself where you fetch a doc and then you can fetch some other doc from some other table using an id etc.
+--> Convex functions write directly to documents without using any ORMs.
 
 ------------------------------------------------------------
 
@@ -273,12 +291,6 @@ Relational databases like Postgres, MySQL etc become the go to choice when you k
 Non relational databases make sense, when the structure or schema isn't fixed and would change frequently in early development so you don't want migrating issues etc. You need to access data primarily as self contained chunks, and won't need a bunch of joins etc, plus the attributes of different records in the same table vary ( like different products could have different attributes in the same table)
 
 Most of the SAAS, agencies etc are good with relational databases itself specifically Postgres because Postgres now handles JSON very well, in most cases you will end up with relationships between data even when at start you don't think of it and then you'll have to simulate the joins thing in the code if you go ahead with the non relational thing which is worse than the db doing it . Postgres should be the go to choice unless you have a very specific reason not to go ahead with it.
-
-The above is dev phase, for deploying the convex backend to prod, you essentially use "npx convex deploy", it moves the functions, schema.ts etc there to a prod convex server, gives you a different deployment link which your Next.js app has to then point to, and you also need to setup envs separately for prod. Also, the db in prod starts from a clean state but you can import and export stuff between deployments.
-
-In Convex, we have the concept of internal functions and public functions. Internal functions are defined with internalQuery, internalMutation, internalAction and the public functions are defined with query, mutation and action. 
-
-There's also a concept of Cloud URL and HTTP Actions URL. Convex Cloud URL is essentially just the deployment URL that the convex client talks to for the normal convex functionalities whereas the HTTP actions URL is deployment site URL that is used with HTTP actions, a functionality in Convex that is used to expose HTTP endpoints that other external services can use and post to . This is needed in case where they want to send some response to Convex, but they don't speak the language of Convex so they just need simple HTTP endpoints to post to.
 
 -------------------------
 
@@ -453,7 +465,7 @@ The right approach is to use vertical scaling and go ahead with horizontal scali
 
 On Hetzner, I just checked some prices and realized that vertically scaling is the right way to go atleast till we scale to CX53, which has 16 vCPU, 32 GB RAM, 320 GB Nvme space and will cost around  Rs 3000/month ( not bad at all, I would say)
 
-Also, just realized that it is not like docker will only help in horizontal scaling cases, it also helps in vertical scaling. Eg - If you vertically scale the main machine since we realized that is cheaper and we don't both bother about problems like single point of failrre etc for now, we can just spin up multiplie isolated docker containers running your app on the same machine you rescaled and you are good to go. You can keep doing this till you eventually hit single machine rescaling limits, in which case you will have to need multiple machines altogether.
+Also, just realized that it is not like docker will only help in horizontal scaling cases, it also helps in vertical scaling. Eg - If you vertically scale the main machine since we realized that is cheaper and we don't both bother about problems like single point of failrre etc for now, we can just spin up multiplie isolated docker containers running your app on the same machine you rescaled and you are good to go. You can keep doing this till you eventually hit single machine rescaling limits, in which case you will have to need multiple machines altogether. ( use multiple docker containers on same machine only if needed. If it isn't needed, avoid.)
 
 The docker image should be stateless and could be rebuilt freely. This includes python packages, scripts, dependencies, chromium browser. The stuff that is stateful is the data that stays on the machine. This inludes cookies, persistent browser profiles, .env etc.
 
@@ -488,15 +500,15 @@ https://www.aihero.dev/skills
 
 8/9/26 
 
-How big teams work with Docker ?
+How big teams work with Docker ? ( Rough estimations )
 
 They deploy artifacts, not code. They treat image as the only real thing, deps, pinned versions, base OS etc all in form of an immutable, checksummed, tagged artifact.
 
 Important pointers to keep in mind -->
 
-1. Pin Everything --> Use lockfils, don't use >= floating versions.
+1. Pin Everything --> Use lockfiles, don't use >= floating versions.
 2. Build once and push to registry like GHCR/ECR etc with an immutable tag ( commit SHA ) and then promote that tag, dev -> staging -> prod. You don't build on prod again.
-3. When building docker images, put the rarely changing things like dependencieson early and the frequently changing things like application code later so Docker can reuse its cache. For compicated builds, use a temporary builder environment with all the tools needed to build and then only copy the finished application into the clean runtime image.
+3. When building docker images, put the rarely changing things like dependencies on early and the frequently changing things like application code later so Docker can reuse its cache. For compicated builds, use a temporary builder environment with all the tools needed to build and then only copy the finished application into the clean runtime image.
 4. Don't have any sort of hardcoded paths, machine names, secrets, all of it should come from env variables etc.
 5. Containers should be stateless
 
@@ -560,5 +572,5 @@ You need to be disciplined about versioning because docker doesn't enforce a "th
 --> How to think about scaling the linkedin farm. I think we can dockerize stuff but what all things would be the part of image, how would it work etc?
 --> How to actually dockerize ? https://youtu.be/gAkwW2tuIqE?si=_IQpoy-Gz6hXRuc-
 
---> Connect Convex backend to linkedin scraper and ensure that all the machines with docker container running eventually link back to the same prod db and modfy similar tables and have proper idea of how they will add data simultaneously to the same table etc, consider multiple things.
+--> Connect Convex backend to linkedin scraper and ensure that all the machines with docker container running eventually link back to the same prod db and modify similar tables and have proper idea of how they will add data simultaneously to the same table etc, consider multiple things.
 --> Build detailed scraper layer --> it should scrape posts, comments, reactions, reposts etc for each person from a list let's say, or it could be realtime, where you ask it in Pi chat itself to just add a task in queue to do that . We have ensured that the warmup part works fine. We also need to ensure scraper part works fine, and it is appropriately moved to cooling state, and other states accordingly.
