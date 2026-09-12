@@ -552,7 +552,82 @@ You can then pull the image using docker pull command. The cleaner way would be 
 
 You need to be disciplined about versioning because docker doesn't enforce a "this tag can only be pushed once" policy. it will just silently override what was already there so it's responsibility of dev to ensure that he modified the version appropriately. In most teams, CI does the image build and versioning part so you don't generally have to do that but for small projects you might.
 
+------------------------------------------------------------
 
+12/9/26
+
+People at times use agent and agentic harness interchangeably but there seems to be a thin line between both those things.
+
+Agent is basically the reasoning pattern or reasoning loop where LLM decides the next set of actions using results from previous actions and then can request tool calls etc and it keeps on doing this in a loop until a stopping condition is met.
+
+Agentic Harness is the entire infrastructure around this that actually executes tools calls, provides results to Model, calls the model, manages context and so on.
+
+----
+
+How to decide when you need an agentic harness for a task vs simply writing deterministic code logic ?
+
+The core test that can help you answer this is whether the input to output mapping can be know ahead of time. If you can write rules that can map inputs to outputs, even a messy, conditional branching logic, deterministic code wins because it's fast, cheap, reproducible and so on. Agentic harness earns it's keep when the input space is too open ended.
+
+Signals that point towards deterministic code include, the cases that need to be handled are enumerable, latency, cost, reliability matter a lot, "confidently wrong" is expensive that means agents can fail silently and be confident that they are right. This is not the case with deterministic code, you can have exceptions and so on to handle certain cases.
+
+Signals that point towards agentic harness include, unstructured text, variable input, no of edge cases unknown, task requires multi step tool use and sequence of steps depends on intermediate results that you can't predict, cost of building exhaustive deterministic code exceeds the cost of occasional agent errors, you need judgement ( inference ) and not computation.
+
+Practical decision rule would look something like --> 
+
+Try to write the algorithm of what you want to build, if the no of cases, and branching etc is deterministic, enumerable, and you are able to do this activity in certain amount of time, should probably write deterministic code. If you keep on encountering new edge cases and different stages of branching and its basically open ended and difficult to enumerate, use agentic harness. Hybrid is generally the right approach, try to use deterministic code at every place and if there's some layer where LLM is right choice, use it.
+
+Coding agentic harness is a good example of this. Let's say, you wanna fix a bug, now in order to do this, there are a lot of things that come into picture. You might read a file, fix some stuff, run tests, fail, then might want to read some other related file and so on , might want to understand the intent deeply, this is what unbounded branch factor really means, you can't predict the no or sequence of steps in the first place so agentic harness is a right choice here.
+
+The hybrid that actually shipped includes, 
+
+1. Inference, next steps of actionm tool call requests etc decided by LLM
+2. Deterministic tool calls like diffing files, git operations
+3. Verifications done via tests run
+
+Deterministic code handles the stuff it can ( searching, diffing files etc), part requiring open ended judgement, understanding intent is done by LLM layer with tool access in a loop because that judgement couldn't be enumerated in advance.
+
+-----
+
+How to decide when you need own agentic harness vs existing harness with custom markdown files as agents ?
+
+There are existing harnesses in the market like Claude Code that have already done all of the scaffolding work like orchestration logic, tool call, retry logic, context compaction and so on. They allows you to customise behavior using the markdown files which then acts as instructions to the orchestration loop but you are not actually writing the orchestration logic, it's already written. Most of the industry is following this pattern because it's also not easy to build a sophisticated agentic harness from scratch plus frontier labs are really doing a good job building agentic harness, so just use it out of the box if possible.
+
+The core test that answers your question of own vs existing agentic harness depends on whether the differentiation is in the loop or in the knowledge/policy fed to the loop ?
+
+If it's more about some domain knowledge, or custom instructions that you can articulate as text , write that down in the markdown files. If it's more about, how context gets managed, how stuff gets sequenced or parallelized, you need some checks deterministically ( can't write these in markdown because model picks stuff from markdowns probabilistically, markdown level checks are fuzzy), same goes with verification. If you want probabiltistic verification, go ahead with markdowns, but if you want it deterministically, you should have your own orchestration logic.
+
+Default to existing harness + markdown and if in the process, you feel like this should be a deterministic step, not probabilistic etc, then think of writing your own harness. ( There's a middle way here as well and that is to pick open source code of a good harness and start customizing it)
+
+When to build your own agent harnesses ? --> https://www.youtube.com/watch?v=HI2q3ci3Iuc&list=WL&index=3
+
+[In Distribution] refers to tasks that the models by frontier AI labs were heavily trained on and as a result the models are good at doing that stuff like editing files, tool calling loops and stuff.
+
+[Out of Distribution] refers to tasks that models were not specifically trained on, like domain specific stuff like Legal AI and so on.
+
+Core rule of thumb --> The more your application moves out of distribution, the more you need to focus on customizing your harness or build your own.
+
+You should use off the shelf harness like Claude Code if your application is in distribution like coding tasks, general purpose stuff.
+Use custom harness when the base model lacks the nuances of doing specific tasks reliably because they were never trained on that data. This includes stuff like legal, finance and so on.
+
+Best is to follow a hybrid approach, where you can have your own harness for your domain specific stuff ( out of distribution ) but for some sub tasks they would be in distribution and there you can use the strategy of off the shelf harnesses.
+
+There are a bunch of open source harnesses like Pi, OpenCode and so on, you can just use them, customise them and so on instead of building everything from scratch.
+
+Harness Engineering --> https://youtu.be/IqQFaj3oO0Q?si=xHNag2DqivjHFSyV
+
+All of the scaffolding work that you do around the core model capabilities in order to serve a specific application / use case in maybe a specific domain in the real world is what harness engineering is all about. 
+
+Loop Engineering --> 
+
+
+
+Promp Engineering --> Context Engineering --> Harness Engineering --> Loop Engineering --> Graph Engineering
+
+Prompt Engineering eventually lost importance in general sense because models got so better at understanding intent that you don't have to write a detailed lengthy prompts with all sort of unnecessary strategies... when you are using it in day to day life through chat interfaces. Stuff like few shot prompting is still relevant at the AI engineer level
+
+Context Engineering is fundamentally about what information to give to AI so it can answer effectively and it is also about what information to drop. It includes things like only giving it relvant stuff and not giving everything, putting important facts towards start and end to avoid lost in the middle, conflict resolution of old and new facts, dropping stale info from past, formatting , giving clear instructions and stuff.
+
+Loop Engineering is all about designing what happens between LLM calls, deciding when to ask LLM for further action again, when to stop, what to do when something goes wrong instead of just letting AI figure that out all by itself. This includes controlling when it stops ( confidence score benchmark , test suite pass and so on), controlling how much it runs ( cost/token budget, wall clock timeouts, max iteration caps etc) , controlling what happens when it fails ( retry back off, fallback to other tools, validating input to tools and so on ), controlling what accumulates across turns ( context compaction at regular intervals, pruning stale info, structuring info rather than unstructured transcript) , controlling parallel/independent work
 ------------------------------------------------------------
 
 --> TODO -->
@@ -563,6 +638,7 @@ You need to be disciplined about versioning because docker doesn't enforce a "th
 --> What exactly does open weight models mean ? Why do some models have fewer guard rails for tasks like scraping while others have more ? Is it about the harness or just about the model capabilities ?
 --> What does MOE models mean ?
 --> Lite LLM seems to be an interesting tool for using CLaude Code harness without any subscription ?
+--> What doe vLLM mean and how is it related to Lite LLM ?
 --> Understand how OAuth, JWT, sessions, cookies etc stuff works ?
 --> How does HTTP / HTTPS / SSL / TLS certificate works ?
 --> What is Cache invalidation ?
@@ -572,5 +648,8 @@ You need to be disciplined about versioning because docker doesn't enforce a "th
 --> How to think about scaling the linkedin farm. I think we can dockerize stuff but what all things would be the part of image, how would it work etc?
 --> How to actually dockerize ? https://youtu.be/gAkwW2tuIqE?si=_IQpoy-Gz6hXRuc-
 
---> Connect Convex backend to linkedin scraper and ensure that all the machines with docker container running eventually link back to the same prod db and modify similar tables and have proper idea of how they will add data simultaneously to the same table etc, consider multiple things.
 --> Build detailed scraper layer --> it should scrape posts, comments, reactions, reposts etc for each person from a list let's say, or it could be realtime, where you ask it in Pi chat itself to just add a task in queue to do that . We have ensured that the warmup part works fine. We also need to ensure scraper part works fine, and it is appropriately moved to cooling state, and other states accordingly.
+
+--> Graph Engineering , Loop Engineering , Harness Engineering ?
+--> Also understand context engineering fundamentals ?
+--> Deciding the right choice for Linkedin ?
